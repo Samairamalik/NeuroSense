@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Parkinson's Detection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f4f6f8;
+        }
+
+        h1 {
+            color: #2c3e50;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 800px;
+            margin: auto;
+            margin-bottom: 30px;
+        }
+
+        .section-divider {
+            margin: 40px 0;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .upload-section {
+            margin-bottom: 20px;
+        }
+
+        input[type="file"] {
+            margin-top: 5px;
+        }
+
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        .images img {
+            width: 250px;
+            margin-right: 20px;
+            border: 1px solid #ccc;
+        }
+
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #eef2f5;
+            border-radius: 6px;
+        }
+
+        .final {
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        .final.healthy {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .final.parkinson {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .audio-player {
+            margin-top: 20px;
+        }
+
+        .info-box {
+            background-color: #e8f4f8;
+            padding: 15px;
+            border-left: 4px solid #3498db;
+            margin-bottom: 20px;
+        }
+
+        .info-box h3 {
+            margin-top: 0;
+        }
+
+        h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        table tr {
+            border-bottom: 1px solid #ddd;
+        }
+
+        table td {
+            padding: 8px;
+        }
+
+        table td:first-child {
+            font-weight: bold;
+            width: 40%;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <h1>Parkinson's Disease Detection System</h1>
+
+    <!-- ============================================ -->
+    <!-- HANDWRITING SECTION -->
+    <!-- ============================================ -->
+    
+    <h2>Handwriting Analysis</h2>
+
+    <div class="info-box">
+        <h3>Instructions:</h3>
+        <ul>
+            <li>Upload two handwriting samples: spiral and wave patterns</li>
+            <li>Draw a spiral from inside to outside on white paper</li>
+            <li>Draw a continuous wave pattern across the page</li>
+            <li>Use black or dark pen for clear contrast</li>
+            <li>Take a clear photo or scan the drawings</li>
+            <li>Supported formats: .jpg, .jpeg, .png</li>
+        </ul>
+    </div>
+
+    <form method="POST" action="/" enctype="multipart/form-data">
+
+        <div class="upload-section">
+            <label><b>Upload Spiral Image</b></label><br>
+            <input type="file" name="spiral" required>
+        </div>
+
+        <div class="upload-section">
+            <label><b>Upload Wave Image</b></label><br>
+            <input type="file" name="wave" required>
+        </div>
+
+        <button type="submit" name="test_type" value="handwriting">Analyze Handwriting</button>
+    </form>
+
+    {% if handwriting_result %}
+
+    <div class="images">
+        <h3>Uploaded Images</h3>
+        <img src="{{ url_for('static', filename='uploads/' + handwriting_result['spiral_img']) }}">
+        <img src="{{ url_for('static', filename='uploads/' + handwriting_result['wave_img']) }}">
+    </div>
+
+    <div class="results">
+        <h3>Handwriting Analysis Results</h3>
+
+        <p>
+            <b>Spiral Prediction:</b>
+            {{ handwriting_result['spiral_label'] }}
+            ({{ handwriting_result['spiral_prob'] }}%)
+        </p>
+
+        <p>
+            <b>Wave Prediction:</b>
+            {{ handwriting_result['wave_label'] }}
+            ({{ handwriting_result['wave_prob'] }}%)
+        </p>
+
+        <div class="final {% if handwriting_result['final'] == 'Likely Parkinson\'s' %}parkinson{% else %}healthy{% endif %}">
+            Final Assessment: {{ handwriting_result['final'] }}
+            ({{ handwriting_result['final_prob'] }}%)
+        </div>
+    </div>
+
+    {% endif %}
+
+    <!-- ============================================ -->
+    <!-- DIVIDER -->
+    <!-- ============================================ -->
+    
+    <div class="section-divider"></div>
+
+    <!-- ============================================ -->
+    <!-- MRI SECTION -->
+    <!-- ============================================ -->
+    
+    <h2>MRI Scan Analysis</h2>
+
+    <div class="info-box">
+        <h3>Instructions:</h3>
+        <ul>
+            <li>Upload a brain MRI scan image</li>
+            <li>Supported formats: .jpg, .jpeg, .png, .bmp</li>
+            <li>Image will be automatically processed and analyzed</li>
+        </ul>
+    </div>
+
+    <form method="POST" action="/" enctype="multipart/form-data">
+
+        <div class="upload-section">
+            <label><b>Upload MRI Scan</b></label><br>
+            <input type="file" name="mri" accept="image/*" required>
+        </div>
+
+        <button type="submit" name="test_type" value="mri">Analyze MRI</button>
+    </form>
+
+    {% if mri_result %}
+
+    <div class="images">
+        <h3>Uploaded MRI Scan</h3>
+        <img src="{{ url_for('static', filename='uploads/' + mri_result['mri_img']) }}" style="width: 300px;">
+    </div>
+
+    <div class="results">
+        <h3>MRI Analysis Results</h3>
+
+        <p>
+            <b>MRI Scan Prediction:</b>
+            {{ mri_result['label']|capitalize }}
+        </p>
+
+        <p>
+            <b>Parkinson's Likelihood:</b>
+            {{ mri_result['prob'] }}%
+        </p>
+
+        <p>
+            <b>Normal Likelihood:</b>
+            {{ 100 - mri_result['prob'] }}%
+        </p>
+
+        <div class="final {% if mri_result['final'] == 'Likely Parkinson\'s' %}parkinson{% else %}healthy{% endif %}">
+            Final Assessment: {{ mri_result['final'] }}
+        </div>
+    </div>
+
+    {% endif %}
+
+    <!-- ============================================ -->
+    <!-- DIVIDER -->
+    <!-- ============================================ -->
+    
+    <div class="section-divider"></div>
+
+    <!-- ============================================ -->
+    <!-- VOICE SECTION -->
+    <!-- ============================================ -->
+    
+    <h2>Voice Analysis</h2>
+
+    <div class="info-box">
+        <h3>Instructions:</h3>
+        <ul>
+            <li>Upload a voice recording in .wav, .mp3, or .flac format</li>
+            <li>Best results: sustained vowel sound "ahhh" for 5-10 seconds</li>
+            <li>Alternative: reading a short passage or counting numbers</li>
+            <li>Ensure clear audio quality with minimal background noise</li>
+        </ul>
+    </div>
+
+    <form method="POST" action="/" enctype="multipart/form-data">
+
+        <div class="upload-section">
+            <label><b>Upload Voice Recording</b></label><br>
+            <input type="file" name="audio" accept=".wav,.mp3,.flac" required>
+        </div>
+
+        <button type="submit" name="test_type" value="voice">Analyze Voice</button>
+    </form>
+
+    {% if voice_result %}
+
+    <div class="audio-player">
+        <h3>Uploaded Audio</h3>
+        <audio controls>
+            <source src="{{ url_for('static', filename='uploads/' + voice_result['audio_file']) }}" type="audio/wav">
+            Your browser does not support the audio element.
+        </audio>
+    </div>
+
+    <div class="results">
+        <h3>Voice Analysis Results</h3>
+
+        <p>
+            <b>Voice Analysis Prediction:</b>
+            {{ voice_result['label']|capitalize }}
+        </p>
+
+        <p>
+            <b>Parkinson's Likelihood:</b>
+            {{ voice_result['prob'] }}%
+        </p>
+
+        <p>
+            <b>Healthy Likelihood:</b>
+            {{ 100 - voice_result['prob'] }}%
+        </p>
+
+        <div class="final {% if voice_result['final'] == 'Likely Parkinson\'s' %}parkinson{% else %}healthy{% endif %}">
+            Final Assessment: {{ voice_result['final'] }}
+        </div>
+
+        <h3>Extracted Voice Features</h3>
+        <table>
+            {% for k, v in voice_result['features'].items() %}
+            <tr>
+                <td>{{ k }}</td>
+                <td>{{ v }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+
+    {% endif %}
+
+    <!-- ============================================ -->
+    <!-- DISCLAIMER -->
+    <!-- ============================================ -->
+    
+    <div style="margin-top: 40px; padding: 15px; background-color: #fff3cd; border-radius: 4px; text-align: center;">
+        <p><strong>Disclaimer</strong></p>
+        <p><strong>Important:</strong> This is a screening tool only. Please consult a healthcare professional for proper diagnosis and medical advice.</p>
+    </div>
+
+</div>
+
+</body>
+</html>
