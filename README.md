@@ -197,7 +197,7 @@ Final Parkinson’s Risk: 69.75%
 
 ## 👤 Author
 
-**Ayush Mishra**
+**Samaira Malik**
 Student Project – Multimodal AI for Healthcare
 
 ---
@@ -208,11 +208,3 @@ This project is intended for **academic and research purposes only**.
 
 ---
 
-If you want, I can also:
-
-* Shorten this for **GitHub landing page**
-* Add **installation badges**
-* Write a **research-paper-style abstract**
-* Convert it into a **Flask app README**
-
-Just say 👍
