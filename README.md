@@ -1,5 +1,4 @@
-Below is a **comprehensive, professional README.md** tailored exactly to **your multimodal Parkinson’s detection project** (handwriting + MRI + voice, SVM/CNN, Git LFS-aware).
-You can **copy–paste this directly into `README.md`**.
+
 
 ---
 
