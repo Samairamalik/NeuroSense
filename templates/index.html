@@ -121,6 +121,63 @@
             font-weight: bold;
             width: 40%;
         }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-left: 4px solid #c0392b;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .fusion {
+            background-color: #eaf4ff;
+            border: 2px solid #3498db;
+            border-radius: 6px;
+            padding: 20px;
+            margin-top: 25px;
+        }
+
+        .bar-row {
+            margin: 10px 0;
+        }
+
+        .bar-label {
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .bar {
+            background-color: #dfe6ec;
+            border-radius: 10px;
+            height: 18px;
+            overflow: hidden;
+        }
+
+        .bar span {
+            display: block;
+            height: 100%;
+            background-color: #3498db;
+        }
+
+        .bar span.high {
+            background-color: #c0392b;
+        }
+
+        .muted {
+            color: #5a6b7a;
+            font-size: 13px;
+        }
+
+        .top-disclaimer {
+            background-color: #fff3cd;
+            border-left: 4px solid #e0a800;
+            padding: 12px 15px;
+            border-radius: 4px;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -128,6 +185,83 @@
 <div class="container">
 
     <h1>Parkinson's Disease Detection System</h1>
+
+    <div class="top-disclaimer">
+        <strong>Screening tool only — not a diagnosis.</strong>
+        Results are probabilistic risk indicators produced by machine-learning
+        models trained on small research datasets. They are intended to support
+        clinical judgement, never to replace it.
+    </div>
+
+    {% if error %}
+    <div class="error"><strong>Could not complete analysis:</strong> {{ error }}</div>
+    {% endif %}
+
+    <!-- ============================================ -->
+    <!-- COMBINED (MULTIMODAL) SECTION -->
+    <!-- ============================================ -->
+
+    <h2>Combined Multimodal Screening</h2>
+
+    <div class="info-box">
+        <h3>Instructions:</h3>
+        <ul>
+            <li>Supply any combination of the three modalities below</li>
+            <li>Each modality is scored independently, then combined into one risk score</li>
+            <li>Handwriting needs <b>both</b> the spiral and the wave drawing</li>
+            <li>More modalities give a more reliable score than any single one</li>
+        </ul>
+    </div>
+
+    <form method="POST" action="/" enctype="multipart/form-data">
+        <div class="upload-section">
+            <label><b>Spiral drawing</b> <span class="muted">(optional)</span></label><br>
+            <input type="file" name="spiral" accept="image/*">
+        </div>
+        <div class="upload-section">
+            <label><b>Wave drawing</b> <span class="muted">(optional)</span></label><br>
+            <input type="file" name="wave" accept="image/*">
+        </div>
+        <div class="upload-section">
+            <label><b>MRI scan</b> <span class="muted">(optional)</span></label><br>
+            <input type="file" name="mri" accept="image/*">
+        </div>
+        <div class="upload-section">
+            <label><b>Voice recording</b> <span class="muted">(optional)</span></label><br>
+            <input type="file" name="audio" accept=".wav,.mp3,.flac,.ogg,.m4a">
+        </div>
+
+        <button type="submit" name="test_type" value="combined">Run Combined Screening</button>
+    </form>
+
+    {% if fusion_result and fusion_result['n_modalities'] > 1 %}
+    <div class="fusion">
+        <h3 style="margin-top:0;">Combined Assessment</h3>
+
+        {% for name, value in fusion_result['modalities'].items() %}
+        <div class="bar-row">
+            <div class="bar-label">{{ name|capitalize }}: <b>{{ value }}%</b></div>
+            <div class="bar">
+                <span class="{% if value > 50 %}high{% endif %}" style="width: {{ value }}%;"></span>
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="final {% if fusion_result['label'] == 'Likely Parkinson\'s' %}parkinson{% else %}healthy{% endif %}">
+            Final Parkinson's Risk: {{ fusion_result['probability'] }}%
+            — {{ fusion_result['label'] }}
+        </div>
+
+        <p class="muted">
+            Weighted mean over {{ fusion_result['n_modalities'] }} modalities
+            (weights: {{ fusion_result['weights'] }}). Per-modality probabilities are
+            not calibrated against one another, so treat this as an indicative score
+            rather than a true probability.
+        </p>
+    </div>
+    {% endif %}
+
+    <div class="section-divider"></div>
 
     <!-- ============================================ -->
     <!-- HANDWRITING SECTION -->
@@ -320,7 +454,25 @@
             Final Assessment: {{ voice_result['final'] }}
         </div>
 
-        <h3>Extracted Voice Features</h3>
+        <h3>Features Used By The Model</h3>
+        <p class="muted">
+            These are the exact features the trained classifier consumes, read from
+            the model's own record of its training columns.
+        </p>
+        <table>
+            {% for k, v in voice_result['model_features'].items() %}
+            <tr>
+                <td>{{ k }}</td>
+                <td>{{ v }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+
+        <h3>Clinical Acoustic Measures</h3>
+        <p class="muted">
+            Reported for interpretability. Jitter and shimmer are normalised ratios;
+            HNR is in dB.
+        </p>
         <table>
             {% for k, v in voice_result['features'].items() %}
             <tr>
@@ -339,7 +491,9 @@
     
     <div style="margin-top: 40px; padding: 15px; background-color: #fff3cd; border-radius: 4px; text-align: center;">
         <p><strong>Disclaimer</strong></p>
-        <p><strong>Important:</strong> This is a screening tool only. Please consult a healthcare professional for proper diagnosis and medical advice.</p>
+        <p><strong>Important:</strong> This is a screening tool only and is not a medical
+        device. It has not been clinically validated. Please consult a qualified
+        healthcare professional for diagnosis and medical advice.</p>
     </div>
 
 </div>

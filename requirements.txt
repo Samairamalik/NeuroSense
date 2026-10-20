@@ -1,0 +1,26 @@
+# NeuroSense dependencies
+#
+# scikit-learn is pinned exactly: the committed models in models/ were fitted
+# with 1.6.1, and loading them under a different minor version raises
+# InconsistentVersionWarning and can change predictions. Retrain the models if
+# you need to move off this version.
+scikit-learn==1.6.1
+
+Flask>=3.0,<4.0
+Werkzeug>=3.0,<4.0
+
+numpy>=1.26,<3.0
+pandas>=2.0,<3.0
+joblib>=1.3
+
+# Image processing / handwriting + MRI features
+opencv-python>=4.8
+scikit-image>=0.22
+
+# Voice features
+librosa>=0.10
+soundfile>=0.12          # librosa's audio backend
+
+# Used by the training notebooks only
+imutils>=0.5
+matplotlib>=3.7
