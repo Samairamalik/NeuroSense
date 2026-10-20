@@ -1,4 +1,6 @@
 {# Combined score. Deliberately subordinate to the per-modality cards. #}
+{# "mri"|capitalize gives "Mri"; acronyms need an explicit label. #}
+{% set MODALITY_LABELS = {'handwriting': 'Handwriting', 'mri': 'MRI', 'voice': 'Voice'} %}
 {% if fusion_result and fusion_result['n_modalities'] > 1 %}
 <div class="fusion-panel">
     <div class="panel__head">
@@ -9,14 +11,14 @@
     {% for name, val in fusion_result['modalities'].items() %}
     <div class="fusion-row">
         <span class="fusion-row__name">
-            {{ name|capitalize }}
+            {{ MODALITY_LABELS.get(name, name|capitalize) }}
             <span class="num">{{ '%.1f'|format(val) }}%</span>
         </span>
         <div class="bar {{ 'is-mid' if 40 <= val <= 60 else ('is-high' if val > 60 else 'is-low') }}"
              data-bar-value="{{ val }}" role="img"
-             aria-label="{{ name }}: {{ '%.1f'|format(val) }} percent">
+             aria-label="{{ MODALITY_LABELS.get(name, name) }}: {{ '%.1f'|format(val) }} percent">
             <div class="bar__band"></div>
-            <div class="bar__fill"></div>
+            <div class="bar__fill" style="width: {{ val }}%"></div>
             <div class="bar__threshold"></div>
         </div>
     </div>

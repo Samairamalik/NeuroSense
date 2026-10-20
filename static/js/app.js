@@ -82,20 +82,39 @@
         });
     }
 
-    /* ---- Confidence bars: grow from zero once visible ---- */
+    /* ---- Confidence bars ----------------------------------------------
+       The true width is rendered server-side in the style attribute, so a bar
+       is correct with JavaScript disabled, blocked, or still loading. The
+       growth animation therefore works in reverse: collapse to zero, then
+       release back to the rendered value. Anything that goes wrong leaves the
+       bar showing the truth rather than an empty track.
+
+       A bar must never disagree with the number printed beside it. */
     function installBars() {
+        if (S.reduceMotion.matches) return;   // already correct; leave it alone
+
         document.querySelectorAll("[data-bar-value]").forEach(function (bar) {
-            var pct = parseFloat(bar.getAttribute("data-bar-value"));
             var fill = bar.querySelector(".bar__fill");
             if (!fill) return;
 
-            if (S.reduceMotion.matches) {
-                fill.style.width = pct + "%";
-                return;
+            var target = fill.style.width;
+            if (!target) return;              // nothing rendered: do not touch
+
+            var released = false;
+            function release() {
+                if (released) return;
+                released = true;
+                fill.style.width = target;
             }
+
+            fill.style.width = "0%";
             S.drawWhenVisible(bar, function () {
-                requestAnimationFrame(function () { fill.style.width = pct + "%"; });
+                requestAnimationFrame(release);
             });
+
+            /* Guarantee the value is restored even if the observer never
+               reports the bar as visible (fast scroll, anchor jump, find). */
+            setTimeout(release, 1200);
         });
     }
 

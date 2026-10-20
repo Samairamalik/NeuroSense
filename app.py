@@ -13,13 +13,14 @@ import os
 import uuid
 import warnings
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, url_for
 from werkzeug.utils import secure_filename
 
 from src.audio_model import VoiceModel
 from src.config import (
     ALLOWED_AUDIO_EXTENSIONS,
     ALLOWED_IMAGE_EXTENSIONS,
+    BASE_DIR,
     MAX_UPLOAD_BYTES,
     UPLOAD_DIR,
 )
@@ -39,6 +40,29 @@ spiral_model = HandwritingModel("spiral")
 wave_model = HandwritingModel("wave")
 mri_model = MRIModel()
 voice_model = VoiceModel()
+
+
+# ======================================================
+# ASSETS
+# ======================================================
+
+@app.context_processor
+def inject_asset_helper():
+    """Stamp static URLs with the file's mtime.
+
+    Without this, browsers keep serving a cached stylesheet or script after a
+    deploy, so a user can end up with new markup and old CSS.
+    """
+    static_root = BASE_DIR / "static"
+
+    def asset(filename):
+        try:
+            stamp = int((static_root / filename).stat().st_mtime)
+        except OSError:
+            stamp = 0
+        return url_for("static", filename=filename, v=stamp)
+
+    return {"asset": asset}
 
 
 # ======================================================

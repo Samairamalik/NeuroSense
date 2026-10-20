@@ -10,9 +10,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+<link rel="stylesheet" href="{{ asset('css/tokens.css') }}">
+<link rel="stylesheet" href="{{ asset('css/base.css') }}">
+<link rel="stylesheet" href="{{ asset('css/components.css') }}">
 {% block head %}{% endblock %}
 </head>
 <body>
@@ -86,8 +86,8 @@
     </div>
 </footer>
 
-<script src="{{ url_for('static', filename='js/spiral.js') }}"></script>
+<script src="{{ asset('js/spiral.js') }}"></script>
 {% block scripts %}{% endblock %}
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ asset('js/app.js') }}"></script>
 </body>
 </html>

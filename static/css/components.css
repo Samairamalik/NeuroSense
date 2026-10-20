@@ -82,19 +82,20 @@
 
 .figure__caption {
     margin-top: var(--s3);
+    font-family: var(--font-body);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    color: var(--ink-3);
+    text-wrap: balance;
+}
+.figure__caption strong {
+    display: block;
     font-family: var(--font-mono);
     font-size: var(--text-xs);
     text-transform: uppercase;
     letter-spacing: 0.11em;
-    color: var(--ink-3);
-}
-.figure__caption strong {
-    display: block;
-    font-family: var(--font-body);
-    font-size: var(--text-sm);
-    letter-spacing: 0;
-    text-transform: none;
     color: var(--ink);
+    margin-bottom: var(--s1);
 }
 
 /* ==========================================================================
@@ -147,9 +148,9 @@
     font-size: var(--text-xs);
     color: var(--ink-3);
     display: flex;
-    justify-content: space-between;
-    gap: var(--s3);
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s2);
 }
 .instrument__go {
     font-family: var(--font-body);
@@ -220,10 +221,12 @@
     );
     border-left: 1px dashed var(--rule-strong);
     border-right: 1px dashed var(--rule-strong);
+    z-index: 2;
 }
 
 .bar__fill {
     position: relative;
+    z-index: 1;
     height: 100%;
     width: 0;
     background: currentColor;
@@ -236,6 +239,7 @@
     left: 50%;
     width: 2px;
     background: var(--ink);
+    z-index: 3;
 }
 
 .bar__scale {
@@ -287,6 +291,9 @@
    ========================================================================== */
 
 .results { padding-block: var(--s7); }
+
+/* The masthead is sticky, so anything we scroll or focus must clear it. */
+.results h2, .results h3, #results { scroll-margin-top: 96px; }
 
 .results.is-revealed > * {
     animation: ease-up var(--dur) var(--ease) both;
@@ -516,4 +523,61 @@ details.disclosure > summary {
     .standing-notice__inner { padding-block: var(--s4); }
     .nav { width: 100%; }
     .nav__link { padding-inline: var(--s3); }
+}
+
+/* ==========================================================================
+   Small screens: the header must not eat the viewport
+   --------------------------------------------------------------------------
+   At 375px the wordmark plus a four-item nav wrapped onto three rows and,
+   being sticky, permanently occupied over half the screen. Below 680px the
+   masthead scrolls away and the nav becomes a single horizontally scrollable
+   row — tap targets stay at 48px, nothing is hidden behind a menu button.
+   ========================================================================== */
+
+@media (max-width: 680px) {
+    .masthead { position: static; }
+
+    .masthead__inner {
+        padding-block: var(--s3) var(--s2);
+        gap: var(--s2);
+    }
+
+    .wordmark { font-size: 1.125rem; min-height: var(--tap); }
+    .wordmark__mark { width: 28px; height: 28px; }
+
+    /* A flex item defaults to min-width:auto, so the <nav> wrapper sized to
+       its content and pushed the whole page sideways. Allowing it to shrink
+       is what lets the list scroll inside it instead of the document. */
+    .masthead__inner > nav {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .nav {
+        margin-left: 0;
+        width: 100%;
+        max-width: 100%;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .nav::-webkit-scrollbar { display: none; }
+
+    .nav__link {
+        white-space: nowrap;
+        padding-inline: var(--s4);
+    }
+
+    /* Nothing is sticky here, so results need no offset. */
+    .results h2, .results h3, #results { scroll-margin-top: var(--s4); }
+
+    .hero { padding-block: var(--s6) var(--s5); }
+    .section { padding-block: var(--s6); }
+    .divider { margin-block: var(--s6); }
+
+    /* Keep the readout and its verdict on one line where possible. */
+    .readout { gap: var(--s2); }
+    .readout__label { margin-left: 0; width: 100%; }
 }

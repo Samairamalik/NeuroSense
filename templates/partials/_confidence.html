@@ -24,7 +24,7 @@
          role="img"
          aria-label="{{ name }}: {{ '%.1f'|format(value) }} percent. Decision threshold 50 percent. Inconclusive band 40 to 60 percent.">
         <div class="bar__band"></div>
-        <div class="bar__fill"></div>
+        <div class="bar__fill" style="width: {{ value }}%"></div>
         <div class="bar__threshold"></div>
     </div>
 
