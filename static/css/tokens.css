@@ -1,0 +1,74 @@
+/* ==========================================================================
+   NeuroSense design tokens
+   --------------------------------------------------------------------------
+   Palette discipline: warm paper, deep ink, ONE accent (teal). Risk is
+   expressed on a single warm ochre->clay ramp; "low risk" reuses the accent
+   rather than introducing a green, so the interface never reads as a
+   traffic light. All text pairings verified at WCAG AA (see docs/).
+   ========================================================================== */
+
+:root {
+    /* ---- Surfaces ---- */
+    --paper:          #f7f4ef;   /* page ground */
+    --paper-raised:   #fffcf7;   /* cards */
+    --paper-sunken:   #efeae1;   /* wells, inactive tracks */
+    --rule:           #ddd6c9;   /* hairlines */
+    --rule-strong:    #c4bbaa;
+
+    /* ---- Ink ---- */
+    --ink:            #16191a;   /* 15.8:1 on paper */
+    --ink-2:          #414947;   /*  8.4:1 — secondary text */
+    --ink-3:          #5c6562;   /*  5.5:1 paper, 5.0:1 sunken — AA everywhere */
+
+    /* ---- Accent (single) ---- */
+    --accent:         #1c5551;   /*  7.9:1 — brand, links, primary action */
+    --accent-deep:    #123b38;   /* pressed states */
+    --accent-wash:    #e4ece9;   /* tinted fills */
+
+    /* ---- Risk ramp: one warm family ---- */
+    --risk-low:       var(--accent);
+    --risk-mid:       #b07d2b;   /* fills/strokes only */
+    --risk-mid-text:  #7f5713;   /*  6.1:1 — text-safe ochre */
+    --risk-high:      #9c3b22;   /*  6.6:1 — clay */
+    --risk-high-wash: #f4e6e1;
+
+    /* ---- Typography ---- */
+    --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+    --font-body:    "IBM Plex Sans", "Helvetica Neue", system-ui, sans-serif;
+    --font-mono:    "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+    --text-base: 1.125rem;  /* 18px floor, per accessibility brief */
+    --text-sm:   1rem;
+    --text-xs:   0.875rem;  /* labels only, never body copy */
+    --leading:   1.6;
+
+    /* ---- Space (4px base) ---- */
+    --s1: 0.25rem;  --s2: 0.5rem;   --s3: 0.75rem;  --s4: 1rem;
+    --s5: 1.5rem;   --s6: 2rem;     --s7: 3rem;     --s8: 4rem;
+    --s9: 6rem;
+
+    /* ---- Geometry ---- */
+    --tap:        48px;     /* minimum interactive target */
+    --radius:     4px;      /* instrument-panel restraint, not pills */
+    --radius-lg:  8px;
+    --measure:    68ch;     /* reading width */
+    --shell:      1140px;
+
+    /* ---- Elevation: paper lifting, not glass ---- */
+    --lift-1: 0 1px 2px rgba(22, 25, 26, 0.05);
+    --lift-2: 0 2px 8px rgba(22, 25, 26, 0.07), 0 1px 2px rgba(22, 25, 26, 0.04);
+
+    /* ---- Motion ---- */
+    --ease:      cubic-bezier(0.22, 0.61, 0.36, 1);
+    --dur-fast:  180ms;
+    --dur:       320ms;
+    --dur-draw:  1600ms;   /* spiral draw-in */
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --dur-fast: 1ms;
+        --dur:      1ms;
+        --dur-draw: 1ms;
+    }
+}
