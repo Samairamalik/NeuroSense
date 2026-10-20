@@ -39,7 +39,7 @@ generalises better than a CNN (a CNN was prototyped in
 |---|---|
 | **Input** | Brain MRI slice |
 | **Pre-processing** | Grayscale → resize 128×128 → scale to [0,1] → flatten (**16,384-dim**) |
-| **Model** | `SVC(kernel="rbf", class_weight="balanced")` |
+| **Model** | `SVC(kernel="rbf", C=1, gamma="scale")` — no class weighting |
 | **Output** | P(Parkinson's) |
 
 An SVM depends only on its support vectors, so it tolerates p ≫ n on a small

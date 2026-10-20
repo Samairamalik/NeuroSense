@@ -89,10 +89,23 @@
                         aria-label="Waveform of the analysed recording"></canvas>
             </div>
 
-            <audio controls style="width: 100%; margin-top: var(--s4);"
+            <audio id="player" class="audio-player" controls preload="metadata"
                    src="{{ url_for('static', filename='uploads/' + voice_result['audio_file']) }}">
                 Your browser does not support audio playback.
             </audio>
+
+            <!-- Large, unambiguous control independent of the native UI, which
+                 Chrome renders small and which some browsers hide entirely. -->
+            <div class="audio-fallback">
+                <button class="btn btn--secondary" type="button" id="play-btn">
+                    Play recording
+                </button>
+                <span class="audio-fallback__time" id="play-time">0:00 / 0:00</span>
+                <a class="btn btn--secondary" download
+                   href="{{ url_for('static', filename='uploads/' + voice_result['audio_file']) }}">
+                    Download .wav
+                </a>
+            </div>
         </div>
 
         <div class="panel">
@@ -156,6 +169,46 @@
             wrap.hidden = false;
             window.NeuroWave.fromFile(canvas, e.detail.file, { animate: true });
         });
+    }
+
+    /* Large play control, kept in sync with the native player. */
+    var player = document.getElementById("player");
+    var playBtn = document.getElementById("play-btn");
+    var playTime = document.getElementById("play-time");
+
+    if (player && playBtn) {
+        var fmt = function (s) {
+            if (!isFinite(s)) return "0:00";
+            var m = Math.floor(s / 60);
+            var r = Math.floor(s % 60);
+            return m + ":" + (r < 10 ? "0" : "") + r;
+        };
+        var sync = function () {
+            if (playTime) {
+                playTime.textContent = fmt(player.currentTime) + " / " + fmt(player.duration);
+            }
+            playBtn.textContent = player.paused ? "Play recording" : "Pause";
+        };
+
+        playBtn.addEventListener("click", function () {
+            if (player.paused) {
+                player.play().catch(function (err) {
+                    playBtn.textContent = "Playback unavailable";
+                    if (playTime) playTime.textContent = err.name;
+                });
+            } else {
+                player.pause();
+            }
+        });
+
+        ["timeupdate", "play", "pause", "ended", "loadedmetadata"].forEach(function (e) {
+            player.addEventListener(e, sync);
+        });
+        player.addEventListener("error", function () {
+            playBtn.disabled = true;
+            playBtn.textContent = "Recording could not be decoded";
+        });
+        sync();
     }
 
     /* Waveform of the stored recording shown with the result. */

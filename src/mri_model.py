@@ -5,6 +5,11 @@ sensitive to slice position, orientation and contrast. It works because the
 dataset is small (an SVM depends only on its support vectors, so it tolerates
 p >> n), but extracting features first — HOG, or a pretrained CNN embedding —
 is the clearest available accuracy upgrade.
+
+Note the saved model is SVC(kernel="rbf", C=1, gamma="scale") with NO class
+weighting, despite the dataset being imbalanced 2.76:1 toward the normal class.
+The training notebook fits two SVCs and the second, unweighted one is what was
+persisted.
 """
 
 from __future__ import annotations
