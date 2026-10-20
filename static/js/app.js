@@ -118,6 +118,28 @@
         });
     }
 
+    /* ---- Sticky-header offset ------------------------------------------
+       The masthead's height changes with viewport width (the nav wraps, the
+       wordmark rescales) and it is not sticky at all on small screens. A
+       hardcoded scroll offset therefore clipped result headings underneath
+       it. Measure the real value and let CSS use it. */
+    function trackMastheadHeight() {
+        var masthead = document.querySelector(".masthead");
+        if (!masthead) return;
+
+        function update() {
+            var sticky = getComputedStyle(masthead).position === "sticky";
+            var h = sticky ? Math.ceil(masthead.getBoundingClientRect().height) : 0;
+            document.documentElement.style.setProperty("--masthead-h", h + "px");
+        }
+
+        update();
+        if ("ResizeObserver" in window) {
+            new ResizeObserver(update).observe(masthead);
+        }
+        window.addEventListener("resize", update);
+    }
+
     /* ---- Results: ease in, and move focus there after a submission ---- */
     function installResults() {
         var results = document.getElementById("results");
@@ -137,6 +159,7 @@
     }
 
     document.addEventListener("DOMContentLoaded", function () {
+        trackMastheadHeight();
         installIdentity();
         installHero();
         installFilePickers();

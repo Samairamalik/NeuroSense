@@ -292,8 +292,12 @@
 
 .results { padding-block: var(--s7); }
 
-/* The masthead is sticky, so anything we scroll or focus must clear it. */
-.results h2, .results h3, #results { scroll-margin-top: 96px; }
+/* The masthead is sticky, so anything we scroll or focus must clear it.
+   Its height varies with viewport width (the nav wraps), so app.js measures
+   it into --masthead-h; this value is only the fallback before that runs. */
+.results h2, .results h3, #results {
+    scroll-margin-top: calc(var(--masthead-h, 110px) + var(--s4));
+}
 
 .results.is-revealed > * {
     animation: ease-up var(--dur) var(--ease) both;

@@ -10,6 +10,7 @@ standalone test scripts and any future training code share one implementation.
 from __future__ import annotations
 
 import os
+import re
 import uuid
 import warnings
 
@@ -97,6 +98,20 @@ def save_upload(file_storage, allowed_extensions: set[str], field: str) -> str:
 
 def _path(stored_name: str) -> str:
     return os.path.join(app.config["UPLOAD_FOLDER"], stored_name)
+
+
+def _sanitise(message: str) -> str:
+    """Strip server filesystem paths out of a message before showing it.
+
+    Underlying libraries put the full path of the saved upload into their
+    errors. Echoing that to the browser discloses the server's directory
+    layout and tells the user nothing useful, so paths are reduced to the
+    bare filename.
+    """
+    upload_dir = str(UPLOAD_DIR)
+    message = message.replace(upload_dir + os.sep, "").replace(upload_dir, "")
+    # Any remaining absolute path -> its final component.
+    return re.sub(r"(/[\w.\-]+)+/([\w.\-]+)", r"\2", message)
 
 
 # ======================================================
@@ -238,9 +253,9 @@ def index():
         })
 
     except ValueError as exc:
-        error = str(exc)
+        error = _sanitise(str(exc))
     except Exception as exc:  # model/IO failure — show it rather than a 500
-        error = f"Analysis failed: {exc}"
+        error = _sanitise(f"Analysis failed: {exc}")
 
     template, active = MODALITY_PAGES.get(test, ("index.html", "home"))
     return render_template(
@@ -274,6 +289,36 @@ def voice_page():
 @app.route("/combined")
 def combined_page():
     return render_template("combined.html", active="combined")
+
+
+# ---- Error pages ------------------------------------------------------
+
+@app.errorhandler(404)
+def not_found(_exc):
+    return render_template(
+        "error.html",
+        code=404,
+        heading="That page does not exist",
+        detail="The address may be mistyped, or the page may have moved.",
+        retry_url=None,
+        active=None,
+    ), 404
+
+
+@app.errorhandler(413)
+def too_large(_exc):
+    limit_mb = MAX_UPLOAD_BYTES // (1024 * 1024)
+    return render_template(
+        "error.html",
+        code=413,
+        heading="That file is too large",
+        detail=(
+            f"Uploads are limited to {limit_mb} MB. Try exporting the scan or "
+            "recording at a smaller size, then upload it again."
+        ),
+        retry_url=url_for("combined_page"),
+        active=None,
+    ), 413
 
 
 @app.route("/api/predict", methods=["POST"])
