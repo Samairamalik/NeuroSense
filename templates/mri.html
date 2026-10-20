@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}MRI — NeuroSense{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="shell shell--narrow">
+        <p class="eyebrow">Instrument 02</p>
+        <h1>MRI scan</h1>
+        <p class="lede">
+            A single brain slice, read as normalised pixel intensities. This is the
+            most experimental of the three instruments — read its caveats before
+            relying on the number.
+        </p>
+    </div>
+</section>
+
+<div class="shell shell--narrow">
+    <div class="panel">
+        <div class="panel__head">
+            <h2>Upload scan</h2>
+            <span class="muted">One image</span>
+        </div>
+
+        <div class="notice">
+            <p style="font-size: var(--text-sm); margin-bottom: 0;">
+                <strong>This model flattens the image,</strong> discarding spatial
+                structure. Results therefore shift with slice position, orientation
+                and contrast. Use a consistent slice and acquisition if you intend to
+                compare scans.
+            </p>
+        </div>
+
+        <form method="POST" action="{{ url_for('index') }}"
+              enctype="multipart/form-data" data-analysis-form>
+            <input type="hidden" name="test_type" value="mri">
+
+            <div class="field">
+                <label class="field__label" for="mri-input">Brain MRI slice</label>
+                <span class="field__hint">PNG, JPEG, BMP or TIFF. Up to 25 MB.</span>
+                <div class="filepicker">
+                    <input type="file" id="mri-input" name="mri"
+                           accept="image/*" required aria-describedby="mri-status">
+                    <p class="filepicker__status" id="mri-status"></p>
+                </div>
+            </div>
+
+            <button class="btn btn--primary btn--block" type="submit">
+                Analyse scan
+            </button>
+        </form>
+    </div>
+</div>
+
+{% if mri_result %}
+<section class="results" id="results">
+    <div class="shell shell--narrow stack">
+        <div>
+            <p class="eyebrow">Result</p>
+            <h2>MRI assessment</h2>
+        </div>
+
+        <div class="panel">
+            {% with value = mri_result['prob'], name = 'MRI' %}
+                {% include "partials/_confidence.html" %}
+            {% endwith %}
+        </div>
+
+        <div class="panel">
+            <div class="panel__head">
+                <h3>Scan viewer</h3>
+                <span class="muted">Model input: 128 × 128 grayscale</span>
+            </div>
+
+            <div class="viewer">
+                <img class="scan" id="scan" alt="The MRI scan you uploaded"
+                     src="{{ url_for('static', filename='uploads/' + mri_result['mri_img']) }}">
+                <div class="viewer__toolbar">
+                    <button class="btn btn--secondary" type="button" id="zoom-toggle"
+                            aria-pressed="false">Zoom in</button>
+                    <span class="muted mono" id="zoom-state">1.0×</span>
+                </div>
+            </div>
+
+            <p class="muted" style="margin-top: var(--s4); margin-bottom: 0;">
+                Classified as <strong class="mono">{{ mri_result['label'] }}</strong>.
+                Zoom is a display aid only — it does not change what the model saw.
+            </p>
+        </div>
+    </div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* Scan zoom: a button, not hover, and not drag — operable by keyboard and
+   by anyone whose pointer control is unsteady. */
+(function () {
+    var scan = document.getElementById("scan");
+    var btn = document.getElementById("zoom-toggle");
+    var state = document.getElementById("zoom-state");
+    if (!scan || !btn) return;
+
+    function apply(zoomed) {
+        scan.classList.toggle("is-zoomed", zoomed);
+        btn.setAttribute("aria-pressed", String(zoomed));
+        btn.textContent = zoomed ? "Zoom out" : "Zoom in";
+        if (state) state.textContent = zoomed ? "1.9×" : "1.0×";
+    }
+    btn.addEventListener("click", function () {
+        apply(btn.getAttribute("aria-pressed") !== "true");
+    });
+    scan.addEventListener("click", function () {
+        if (scan.classList.contains("is-zoomed")) apply(false);
+    });
+})();
+</script>
+{% endblock %}

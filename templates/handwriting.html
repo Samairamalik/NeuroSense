@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Handwriting — NeuroSense{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="shell shell--narrow">
+        <p class="eyebrow">Instrument 01</p>
+        <h1>Handwriting</h1>
+        <p class="lede">
+            Two drawings: an Archimedes spiral and a continuous wave. Tremor shows
+            up as irregular stroke direction, and micrographia as cramped,
+            diminishing strokes.
+        </p>
+    </div>
+</section>
+
+<div class="shell shell--narrow">
+    <div class="panel">
+        <div class="panel__head">
+            <h2>Upload drawings</h2>
+            <span class="muted">Both required</span>
+        </div>
+
+        <div class="notice">
+            <p style="font-size: var(--text-sm);">
+                Draw the spiral outward from the centre and the wave continuously
+                across the page, using a dark pen on white paper. Photograph or scan
+                the result squarely, with even lighting.
+            </p>
+        </div>
+
+        <form method="POST" action="{{ url_for('index') }}"
+              enctype="multipart/form-data" data-analysis-form>
+            <input type="hidden" name="test_type" value="handwriting">
+
+            <div class="field">
+                <label class="field__label" for="spiral-input">Spiral drawing</label>
+                <span class="field__hint">PNG, JPEG, BMP or TIFF. Up to 25 MB.</span>
+                <div class="filepicker">
+                    <input type="file" id="spiral-input" name="spiral"
+                           accept="image/*" required
+                           aria-describedby="spiral-status">
+                    <p class="filepicker__status" id="spiral-status"></p>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="field__label" for="wave-input">Wave drawing</label>
+                <span class="field__hint">PNG, JPEG, BMP or TIFF. Up to 25 MB.</span>
+                <div class="filepicker">
+                    <input type="file" id="wave-input" name="wave"
+                           accept="image/*" required
+                           aria-describedby="wave-status">
+                    <p class="filepicker__status" id="wave-status"></p>
+                </div>
+            </div>
+
+            <button class="btn btn--primary btn--block" type="submit">
+                Analyse handwriting
+            </button>
+        </form>
+    </div>
+</div>
+
+{% if handwriting_result %}
+<section class="results" id="results">
+    <div class="shell shell--narrow stack">
+        <div>
+            <p class="eyebrow">Result</p>
+            <h2>Handwriting assessment</h2>
+        </div>
+
+        <div class="panel">
+            {% with value = handwriting_result['final_prob'], name = 'Handwriting' %}
+                {% include "partials/_confidence.html" %}
+            {% endwith %}
+        </div>
+
+        <div class="result-grid result-grid--2">
+            <div class="panel">
+                <div class="panel__head"><h3>Spiral</h3></div>
+                <div class="viewer trace">
+                    <img class="trace__img" alt="The spiral drawing you uploaded"
+                         src="{{ url_for('static', filename='uploads/' + handwriting_result['spiral_img']) }}">
+                </div>
+                <p class="num" style="margin-top: var(--s4); margin-bottom: 0;">
+                    {{ '%.1f'|format(handwriting_result['spiral_prob']) }}%
+                    <span class="muted">· {{ handwriting_result['spiral_label'] }}</span>
+                </p>
+            </div>
+
+            <div class="panel">
+                <div class="panel__head"><h3>Wave</h3></div>
+                <div class="viewer trace">
+                    <img class="trace__img" alt="The wave drawing you uploaded"
+                         src="{{ url_for('static', filename='uploads/' + handwriting_result['wave_img']) }}">
+                </div>
+                <p class="num" style="margin-top: var(--s4); margin-bottom: 0;">
+                    {{ '%.1f'|format(handwriting_result['wave_prob']) }}%
+                    <span class="muted">· {{ handwriting_result['wave_label'] }}</span>
+                </p>
+            </div>
+        </div>
+
+        <div class="notice">
+            <p style="font-size: var(--text-sm); margin-bottom: 0;">
+                The two drawings are scored by separate support vector machines and
+                averaged. A large gap between them is worth noticing: it usually
+                means one image was harder to threshold cleanly than the other.
+            </p>
+        </div>
+    </div>
+</section>
+{% endif %}
+{% endblock %}

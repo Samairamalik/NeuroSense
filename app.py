@@ -146,74 +146,110 @@ def analyse_voice(audio_file) -> dict:
 # ROUTES
 # ======================================================
 
+# Each modality renders its own page. The POST contract is unchanged: every
+# form still posts to "/" with a test_type, and the same handler runs the same
+# analysis functions — only the template chosen for the response is new.
+MODALITY_PAGES = {
+    "handwriting": ("handwriting.html", "handwriting"),
+    "mri": ("mri.html", "mri"),
+    "voice": ("voice.html", "voice"),
+    "combined": ("combined.html", "combined"),
+}
+
+
 @app.route("/", methods=["GET", "POST"])
 def index():
+    if request.method == "GET":
+        return render_template("index.html", active="home")
+
     handwriting_result = mri_result = voice_result = fusion_result = None
     error = None
+    test = request.form.get("test_type")
 
-    if request.method == "POST":
-        test = request.form.get("test_type")
+    try:
+        spiral = request.files.get("spiral")
+        wave = request.files.get("wave")
+        mri_file = request.files.get("mri")
+        audio = request.files.get("audio")
 
-        try:
-            spiral = request.files.get("spiral")
-            wave = request.files.get("wave")
-            mri_file = request.files.get("mri")
-            audio = request.files.get("audio")
+        def has(f):
+            return f is not None and f.filename
 
-            def has(f):
-                return f is not None and f.filename
+        if test == "handwriting":
+            if not (has(spiral) and has(wave)):
+                raise ValueError("Both a spiral and a wave image are required.")
+            handwriting_result = analyse_handwriting(spiral, wave)
 
-            if test == "handwriting":
-                if not (has(spiral) and has(wave)):
-                    raise ValueError("Both a spiral and a wave image are required.")
+        elif test == "mri":
+            if not has(mri_file):
+                raise ValueError("An MRI scan is required.")
+            mri_result = analyse_mri(mri_file)
+
+        elif test == "voice":
+            if not has(audio):
+                raise ValueError("A voice recording is required.")
+            voice_result = analyse_voice(audio)
+
+        elif test == "combined":
+            # Tri-modal screening: use whatever the user supplied.
+            if has(spiral) and has(wave):
                 handwriting_result = analyse_handwriting(spiral, wave)
-
-            elif test == "mri":
-                if not has(mri_file):
-                    raise ValueError("An MRI scan is required.")
+            if has(mri_file):
                 mri_result = analyse_mri(mri_file)
-
-            elif test == "voice":
-                if not has(audio):
-                    raise ValueError("A voice recording is required.")
+            if has(audio):
                 voice_result = analyse_voice(audio)
 
-            elif test == "combined":
-                # Tri-modal screening: use whatever the user supplied.
-                if has(spiral) and has(wave):
-                    handwriting_result = analyse_handwriting(spiral, wave)
-                if has(mri_file):
-                    mri_result = analyse_mri(mri_file)
-                if has(audio):
-                    voice_result = analyse_voice(audio)
+            if not any([handwriting_result, mri_result, voice_result]):
+                raise ValueError(
+                    "Supply at least one of: both handwriting drawings, an MRI "
+                    "scan, or a voice recording."
+                )
+        else:
+            raise ValueError(f"Unknown test type: {test!r}")
 
-                if not any([handwriting_result, mri_result, voice_result]):
-                    raise ValueError(
-                        "Supply at least one of: both handwriting drawings, an MRI "
-                        "scan, or a voice recording."
-                    )
-            else:
-                raise ValueError(f"Unknown test type: {test!r}")
+        fusion_result = fuse({
+            "handwriting": handwriting_result["_raw"] if handwriting_result else None,
+            "mri": mri_result["_raw"] if mri_result else None,
+            "voice": voice_result["_raw"] if voice_result else None,
+        })
 
-            fusion_result = fuse({
-                "handwriting": handwriting_result["_raw"] if handwriting_result else None,
-                "mri": mri_result["_raw"] if mri_result else None,
-                "voice": voice_result["_raw"] if voice_result else None,
-            })
+    except ValueError as exc:
+        error = str(exc)
+    except Exception as exc:  # model/IO failure — show it rather than a 500
+        error = f"Analysis failed: {exc}"
 
-        except ValueError as exc:
-            error = str(exc)
-        except Exception as exc:  # model/IO failure — show it rather than a 500
-            error = f"Analysis failed: {exc}"
-
+    template, active = MODALITY_PAGES.get(test, ("index.html", "home"))
     return render_template(
-        "index.html",
+        template,
         handwriting_result=handwriting_result,
         mri_result=mri_result,
         voice_result=voice_result,
         fusion_result=fusion_result,
         error=error,
+        active=active,
     )
+
+
+# ---- Modality pages (GET only; they post back to "/") ----------------
+
+@app.route("/handwriting")
+def spiral_page():
+    return render_template("handwriting.html", active="handwriting")
+
+
+@app.route("/mri")
+def mri_page():
+    return render_template("mri.html", active="mri")
+
+
+@app.route("/voice")
+def voice_page():
+    return render_template("voice.html", active="voice")
+
+
+@app.route("/combined")
+def combined_page():
+    return render_template("combined.html", active="combined")
 
 
 @app.route("/api/predict", methods=["POST"])
