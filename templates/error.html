@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} — NeuroSense{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="shell shell--narrow">
+        <p class="eyebrow">Error {{ code }}</p>
+        <h1>{{ heading }}</h1>
+        <p class="lede">{{ detail }}</p>
+        <div class="hero__actions">
+            <a class="btn btn--primary" href="{{ url_for('index') }}">Back to start</a>
+            {% if retry_url %}
+            <a class="btn btn--secondary" href="{{ retry_url }}">Try again</a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

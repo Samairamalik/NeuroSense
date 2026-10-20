@@ -1,0 +1,54 @@
+{#
+  Confidence readout for one modality.
+    value  — probability as a percentage (0-100)
+    name   — what was measured
+  A result inside the 40-60 band is reported as inconclusive. That band is a
+  stated decision rule, not an uncertainty estimate: the models emit a single
+  point probability and no calibrated interval, so none is drawn.
+#}
+{% set inconclusive = value >= 40 and value <= 60 %}
+{% set tone = 'is-mid' if inconclusive else ('is-high' if value > 60 else 'is-low') %}
+
+<div class="{{ tone }}">
+    <div class="readout">
+        <span class="readout__value num">{{ '%.1f'|format(value) }}</span>
+        <span class="readout__unit">%</span>
+        <span class="readout__label">
+            {%- if inconclusive -%}Inconclusive
+            {%- elif value > 60 -%}Elevated indicators
+            {%- else -%}Low indicators{%- endif -%}
+        </span>
+    </div>
+
+    <div class="bar" data-bar-value="{{ value }}"
+         role="img"
+         aria-label="{{ name }}: {{ '%.1f'|format(value) }} percent. Decision threshold 50 percent. Inconclusive band 40 to 60 percent.">
+        <div class="bar__band"></div>
+        <div class="bar__fill" style="width: {{ value }}%"></div>
+        <div class="bar__threshold"></div>
+    </div>
+
+    <div class="bar__scale" aria-hidden="true">
+        <span>0</span><span>50</span><span>100</span>
+    </div>
+
+    <p class="bar-legend" aria-hidden="true">
+        <span><span class="bar-legend__swatch bar-legend__swatch--threshold"></span>Threshold</span>
+        <span><span class="bar-legend__swatch bar-legend__swatch--band"></span>Inconclusive 40–60</span>
+    </p>
+</div>
+
+{% if inconclusive %}
+<div class="inconclusive">
+    <p>
+        <strong>Inconclusive — consult a clinician.</strong>
+        At {{ '%.1f'|format(value) }}% this result sits too close to the decision
+        threshold to support a conclusion either way. It should not be read as a
+        negative result.
+    </p>
+</div>
+{% endif %}
+
+<p class="muted" style="margin-top: var(--s4);">
+    No calibrated confidence interval is available for this model, so none is shown.
+</p>

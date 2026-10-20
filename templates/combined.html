@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Combined screening — NeuroSense{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="shell shell--narrow">
+        <p class="eyebrow">All instruments</p>
+        <h1>Combined screening</h1>
+        <p class="lede">
+            Supply any combination of the three modalities. Each is scored
+            independently, and you see every result separately before anything is
+            combined.
+        </p>
+    </div>
+</section>
+
+<div class="shell shell--narrow">
+    <div class="panel">
+        <div class="panel__head">
+            <h2>Inputs</h2>
+            <span class="muted">All optional — supply at least one</span>
+        </div>
+
+        <form method="POST" action="{{ url_for('index') }}"
+              enctype="multipart/form-data" data-analysis-form>
+            <input type="hidden" name="test_type" value="combined">
+
+            <div class="field">
+                <label class="field__label" for="c-spiral">
+                    Spiral drawing <span class="field__optional">Pair with wave</span>
+                </label>
+                <div class="filepicker">
+                    <input type="file" id="c-spiral" name="spiral" accept="image/*"
+                           aria-describedby="c-spiral-status">
+                    <p class="filepicker__status" id="c-spiral-status"></p>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="field__label" for="c-wave">
+                    Wave drawing <span class="field__optional">Pair with spiral</span>
+                </label>
+                <div class="filepicker">
+                    <input type="file" id="c-wave" name="wave" accept="image/*"
+                           aria-describedby="c-wave-status">
+                    <p class="filepicker__status" id="c-wave-status"></p>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="field__label" for="c-mri">
+                    MRI scan <span class="field__optional">Optional</span>
+                </label>
+                <div class="filepicker">
+                    <input type="file" id="c-mri" name="mri" accept="image/*"
+                           aria-describedby="c-mri-status">
+                    <p class="filepicker__status" id="c-mri-status"></p>
+                </div>
+            </div>
+
+            <div class="field">
+                <label class="field__label" for="c-audio">
+                    Voice recording <span class="field__optional">Optional</span>
+                </label>
+                <div class="filepicker">
+                    <input type="file" id="c-audio" name="audio"
+                           accept=".wav,.mp3,.flac,.ogg,.m4a"
+                           aria-describedby="c-audio-status">
+                    <p class="filepicker__status" id="c-audio-status"></p>
+                </div>
+            </div>
+
+            <p class="muted">
+                Handwriting needs both drawings to be scored. Voice analysis takes a
+                few seconds — the recording is decoded and 95 features extracted.
+            </p>
+
+            <button class="btn btn--primary btn--block" type="submit">
+                Run combined screening
+            </button>
+        </form>
+    </div>
+</div>
+
+{% if handwriting_result or mri_result or voice_result %}
+<section class="results" id="results">
+    <div class="shell shell--narrow stack">
+        <div>
+            <p class="eyebrow">Result</p>
+            <h2>Per-modality assessment</h2>
+            <p class="muted">
+                Read these first. Each model saw only its own input.
+            </p>
+        </div>
+
+        {% if handwriting_result %}
+        <div class="panel">
+            <div class="panel__head">
+                <h3>Handwriting</h3>
+                <span class="muted mono">
+                    spiral {{ '%.1f'|format(handwriting_result['spiral_prob']) }}% ·
+                    wave {{ '%.1f'|format(handwriting_result['wave_prob']) }}%
+                </span>
+            </div>
+            {% with value = handwriting_result['final_prob'], name = 'Handwriting' %}
+                {% include "partials/_confidence.html" %}
+            {% endwith %}
+        </div>
+        {% endif %}
+
+        {% if mri_result %}
+        <div class="panel">
+            <div class="panel__head">
+                <h3>MRI</h3>
+                <span class="muted mono">{{ mri_result['label'] }}</span>
+            </div>
+            {% with value = mri_result['prob'], name = 'MRI' %}
+                {% include "partials/_confidence.html" %}
+            {% endwith %}
+        </div>
+        {% endif %}
+
+        {% if voice_result %}
+        <div class="panel">
+            <div class="panel__head">
+                <h3>Voice</h3>
+                <span class="muted mono">{{ voice_result['label'] }}</span>
+            </div>
+            {% with value = voice_result['prob'], name = 'Voice' %}
+                {% include "partials/_confidence.html" %}
+            {% endwith %}
+        </div>
+        {% endif %}
+
+        {% include "partials/_fusion.html" %}
+    </div>
+</section>
+{% endif %}
+{% endblock %}

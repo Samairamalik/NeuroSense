@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}Voice — NeuroSense{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="shell shell--narrow">
+        <p class="eyebrow">Instrument 03</p>
+        <h1>Voice</h1>
+        <p class="lede">
+            A sustained vowel carries the breathiness, pitch instability and
+            reduced harmonic energy characteristic of Parkinsonian dysphonia.
+        </p>
+    </div>
+</section>
+
+<div class="shell shell--narrow">
+    <div class="panel">
+        <div class="panel__head">
+            <h2>Upload recording</h2>
+            <span class="muted">One file</span>
+        </div>
+
+        <div class="notice">
+            <p style="font-size: var(--text-sm); margin-bottom: 0;">
+                Say “ahh” steadily for five to ten seconds at a comfortable pitch,
+                about a hand's width from the microphone, somewhere quiet. Reading a
+                short passage also works.
+            </p>
+        </div>
+
+        <form method="POST" action="{{ url_for('index') }}"
+              enctype="multipart/form-data" data-analysis-form>
+            <input type="hidden" name="test_type" value="voice">
+
+            <div class="field">
+                <label class="field__label" for="audio-input">Voice recording</label>
+                <span class="field__hint">WAV, MP3, FLAC, OGG or M4A. Up to 25 MB.</span>
+                <div class="filepicker">
+                    <input type="file" id="audio-input" name="audio"
+                           accept=".wav,.mp3,.flac,.ogg,.m4a" required
+                           aria-describedby="audio-status">
+                    <p class="filepicker__status" id="audio-status"></p>
+                </div>
+            </div>
+
+            <!-- Preview of the chosen file, drawn in the browser before upload. -->
+            <div class="field" id="preview-wrap" hidden>
+                <span class="field__label">Waveform preview</span>
+                <span class="field__hint mono" id="preview-meta">—</span>
+                <div class="viewer">
+                    <canvas class="waveform" id="preview-wave"
+                            data-meta-target="preview-meta"
+                            role="img"
+                            aria-label="Waveform of the recording you selected"></canvas>
+                </div>
+            </div>
+
+            <button class="btn btn--primary btn--block" type="submit">
+                Analyse voice
+            </button>
+        </form>
+    </div>
+</div>
+
+{% if voice_result %}
+<section class="results" id="results">
+    <div class="shell shell--narrow stack">
+        <div>
+            <p class="eyebrow">Result</p>
+            <h2>Voice assessment</h2>
+        </div>
+
+        <div class="panel">
+            {% with value = voice_result['prob'], name = 'Voice' %}
+                {% include "partials/_confidence.html" %}
+            {% endwith %}
+        </div>
+
+        <div class="panel">
+            <div class="panel__head">
+                <h3>Recording</h3>
+                <span class="muted mono" id="result-meta">—</span>
+            </div>
+
+            <div class="viewer">
+                <canvas class="waveform" id="result-wave"
+                        data-meta-target="result-meta"
+                        role="img"
+                        aria-label="Waveform of the analysed recording"></canvas>
+            </div>
+
+            <audio id="player" class="audio-player" controls preload="metadata"
+                   src="{{ url_for('static', filename='uploads/' + voice_result['audio_file']) }}">
+                Your browser does not support audio playback.
+            </audio>
+
+            <!-- Large, unambiguous control independent of the native UI, which
+                 Chrome renders small and which some browsers hide entirely. -->
+            <div class="audio-fallback">
+                <button class="btn btn--secondary" type="button" id="play-btn">
+                    Play recording
+                </button>
+                <span class="audio-fallback__time" id="play-time">0:00 / 0:00</span>
+                <a class="btn btn--secondary" download
+                   href="{{ url_for('static', filename='uploads/' + voice_result['audio_file']) }}">
+                    Download .wav
+                </a>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel__head">
+                <h3>Clinical acoustic measures</h3>
+            </div>
+            <div class="table-scroll">
+                <table class="data-table">
+                    <caption>
+                        Reported for interpretability. Jitter and shimmer are
+                        normalised ratios; HNR is in decibels.
+                    </caption>
+                    <thead>
+                        <tr><th scope="col">Measure</th><th scope="col">Value</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for k, v in voice_result['features'].items() %}
+                        <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <details class="disclosure">
+                <summary>Show the 15 features the model consumed</summary>
+                <div class="table-scroll" style="margin-top: var(--s4);">
+                    <table class="data-table">
+                        <caption>
+                            In training order, read from the model's own record of its
+                            training columns.
+                        </caption>
+                        <thead>
+                            <tr><th scope="col">Feature</th><th scope="col">Value</th></tr>
+                        </thead>
+                        <tbody>
+                        {% for k, v in voice_result['model_features'].items() %}
+                            <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </details>
+        </div>
+    </div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ asset('js/waveform.js') }}"></script>
+<script>
+(function () {
+    /* Preview the picked file before upload — the waveform responds to the
+       user's own input without needing a recording endpoint. */
+    var input = document.getElementById("audio-input");
+    var wrap = document.getElementById("preview-wrap");
+    var canvas = document.getElementById("preview-wave");
+
+    if (input && wrap && canvas) {
+        input.addEventListener("neurosense:file", function (e) {
+            wrap.hidden = false;
+            window.NeuroWave.fromFile(canvas, e.detail.file, { animate: true });
+        });
+    }
+
+    /* Large play control, kept in sync with the native player. */
+    var player = document.getElementById("player");
+    var playBtn = document.getElementById("play-btn");
+    var playTime = document.getElementById("play-time");
+
+    if (player && playBtn) {
+        var fmt = function (s) {
+            if (!isFinite(s)) return "0:00";
+            var m = Math.floor(s / 60);
+            var r = Math.floor(s % 60);
+            return m + ":" + (r < 10 ? "0" : "") + r;
+        };
+        var sync = function () {
+            if (playTime) {
+                playTime.textContent = fmt(player.currentTime) + " / " + fmt(player.duration);
+            }
+            playBtn.textContent = player.paused ? "Play recording" : "Pause";
+        };
+
+        playBtn.addEventListener("click", function () {
+            if (player.paused) {
+                player.play().catch(function (err) {
+                    playBtn.textContent = "Playback unavailable";
+                    if (playTime) playTime.textContent = err.name;
+                });
+            } else {
+                player.pause();
+            }
+        });
+
+        ["timeupdate", "play", "pause", "ended", "loadedmetadata"].forEach(function (e) {
+            player.addEventListener(e, sync);
+        });
+        player.addEventListener("error", function () {
+            playBtn.disabled = true;
+            playBtn.textContent = "Recording could not be decoded";
+        });
+        sync();
+    }
+
+    /* Waveform of the stored recording shown with the result. */
+    var result = document.getElementById("result-wave");
+    {% if voice_result %}
+    if (result) {
+        window.NeuroWave.fromUrl(
+            result,
+            "{{ url_for('static', filename='uploads/' + voice_result['audio_file']) }}",
+            { animate: true }
+        );
+    }
+    {% endif %}
+})();
+</script>
+{% endblock %}

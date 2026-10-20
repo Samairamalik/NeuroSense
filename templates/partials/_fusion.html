@@ -1,0 +1,44 @@
+{# Combined score. Deliberately subordinate to the per-modality cards. #}
+{# "mri"|capitalize gives "Mri"; acronyms need an explicit label. #}
+{% set MODALITY_LABELS = {'handwriting': 'Handwriting', 'mri': 'MRI', 'voice': 'Voice'} %}
+{% if fusion_result and fusion_result['n_modalities'] > 1 %}
+<div class="fusion-panel">
+    <div class="panel__head">
+        <h3>Combined indicator</h3>
+        <span class="muted">{{ fusion_result['n_modalities'] }} modalities, equally weighted</span>
+    </div>
+
+    {% for name, val in fusion_result['modalities'].items() %}
+    <div class="fusion-row">
+        <span class="fusion-row__name">
+            {{ MODALITY_LABELS.get(name, name|capitalize) }}
+            <span class="num">{{ '%.1f'|format(val) }}%</span>
+        </span>
+        <div class="bar {{ 'is-mid' if 40 <= val <= 60 else ('is-high' if val > 60 else 'is-low') }}"
+             data-bar-value="{{ val }}" role="img"
+             aria-label="{{ MODALITY_LABELS.get(name, name) }}: {{ '%.1f'|format(val) }} percent">
+            <div class="bar__band"></div>
+            <div class="bar__fill" style="width: {{ val }}%"></div>
+            <div class="bar__threshold"></div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <div style="margin-top: var(--s5); padding-top: var(--s5); border-top: 1px solid var(--rule-strong);">
+        {% set v = fusion_result['probability'] %}
+        <div class="{{ 'is-mid' if 40 <= v <= 60 else ('is-high' if v > 60 else 'is-low') }}">
+            <div class="readout">
+                <span class="readout__value num">{{ '%.1f'|format(v) }}</span>
+                <span class="readout__unit">%</span>
+                <span class="readout__label">{{ fusion_result['label'] }}</span>
+            </div>
+        </div>
+
+        <p class="muted" style="margin-bottom: 0;">
+            A weighted mean, not a calibrated probability. The individual models are
+            not calibrated against one another, so read the per-modality figures
+            above first — this number can mask disagreement between them.
+        </p>
+    </div>
+</div>
+{% endif %}

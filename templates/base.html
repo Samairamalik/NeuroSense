@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}NeuroSense — Multimodal Parkinson's Screening{% endblock %}</title>
+<meta name="description" content="A research screening instrument that analyses handwriting, MRI and voice independently to produce Parkinson's risk indicators. Not a diagnostic tool.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="{{ asset('css/tokens.css') }}">
+<link rel="stylesheet" href="{{ asset('css/base.css') }}">
+<link rel="stylesheet" href="{{ asset('css/components.css') }}">
+{% block head %}{% endblock %}
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="masthead">
+    <div class="shell masthead__inner">
+        <a class="wordmark" href="{{ url_for('index') }}">
+            <span class="wordmark__mark" data-spiral-mark data-label="NeuroSense"></span>
+            <span>
+                NeuroSense
+                <span class="wordmark__sub">Screening instrument</span>
+            </span>
+        </a>
+
+        <nav aria-label="Modalities">
+            <ul class="nav">
+                <li><a class="nav__link" href="{{ url_for('spiral_page') }}"
+                       {% if active == 'handwriting' %}aria-current="page"{% endif %}>Handwriting</a></li>
+                <li><a class="nav__link" href="{{ url_for('mri_page') }}"
+                       {% if active == 'mri' %}aria-current="page"{% endif %}>MRI</a></li>
+                <li><a class="nav__link" href="{{ url_for('voice_page') }}"
+                       {% if active == 'voice' %}aria-current="page"{% endif %}>Voice</a></li>
+                <li><a class="nav__link" href="{{ url_for('combined_page') }}"
+                       {% if active == 'combined' %}aria-current="page"{% endif %}>Combined</a></li>
+            </ul>
+        </nav>
+    </div>
+</header>
+
+<!-- Persistent, always-visible standing of the tool. Not a footer afterthought. -->
+<div class="standing-notice" role="note">
+    <div class="shell standing-notice__inner">
+        <span class="standing-notice__tag">Research screening</span>
+        <p>
+            Produces <strong>risk indicators, not diagnoses.</strong> Each modality is
+            scored independently by a model trained on a small research dataset.
+            Clinical interpretation is required.
+        </p>
+    </div>
+</div>
+
+<main id="main">
+    {% if error %}
+    <div class="shell">
+        <div class="notice notice--error" role="alert">
+            <strong>Could not complete analysis.</strong>
+            <p>{{ error }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+</main>
+
+<div id="live-region" class="visually-hidden" role="status" aria-live="polite"></div>
+
+<footer class="footer">
+    <div class="shell">
+        <p>
+            <strong>NeuroSense</strong> is a research prototype. It is not a medical
+            device, has not been clinically validated, and must not be used to make
+            or withhold a diagnosis. Consult a qualified clinician.
+        </p>
+        <p class="muted">
+            Handwriting and MRI: support vector machines. Voice: random forest.
+            Modalities are evaluated independently.
+            <a href="{{ url_for('index') }}#how-it-works">How this works and its limitations</a>.
+        </p>
+    </div>
+</footer>
+
+<script src="{{ asset('js/spiral.js') }}"></script>
+{% block scripts %}{% endblock %}
+<script src="{{ asset('js/app.js') }}"></script>
+</body>
+</html>

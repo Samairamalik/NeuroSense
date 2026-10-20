@@ -1,253 +1,365 @@
-from flask import Flask, render_template, request
-from werkzeug.utils import secure_filename
+"""NeuroSense — multimodal Parkinson's screening web app.
+
+Not a diagnostic tool. It produces risk indicators intended to support, never
+replace, clinical judgement.
+
+All model and pre-processing logic lives in src/ so that the web app, the
+standalone test scripts and any future training code share one implementation.
+"""
+
+from __future__ import annotations
+
 import os
-import cv2
-import numpy as np
-import joblib
-from skimage import feature
-import librosa
+import re
+import uuid
 import warnings
+
+from flask import Flask, jsonify, render_template, request, url_for
+from werkzeug.utils import secure_filename
+
+from src.audio_model import VoiceModel
+from src.config import (
+    ALLOWED_AUDIO_EXTENSIONS,
+    ALLOWED_IMAGE_EXTENSIONS,
+    BASE_DIR,
+    MAX_UPLOAD_BYTES,
+    UPLOAD_DIR,
+)
+from src.fusion import fuse, label_for
+from src.handwriting_model import HandwritingModel
+from src.mri_model import MRIModel
 
 warnings.filterwarnings("ignore")
 
 app = Flask(__name__)
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+app.config["UPLOAD_FOLDER"] = str(UPLOAD_DIR)
+app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
 
-UPLOAD_FOLDER = "static/uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["ALLOWED_AUDIO_EXTENSIONS"] = {"wav", "mp3", "flac"}
+# Loaded once at import — these pickles are large (44 MB for MRI alone).
+spiral_model = HandwritingModel("spiral")
+wave_model = HandwritingModel("wave")
+mri_model = MRIModel()
+voice_model = VoiceModel()
 
-# ======================================================
-# LOAD MODELS
-# ======================================================
-
-spiral_model = joblib.load("models/parkinsons_spiral_model.pkl")
-wave_model = joblib.load("models/parkinsons_wave_model.pkl")
-
-spiral_scaler = joblib.load("models/scaler_spiral.pkl")
-wave_scaler = joblib.load("models/scaler_wave.pkl")
-
-spiral_le = joblib.load("models/label_encoder_spiral.pkl")
-wave_le = joblib.load("models/label_encoder_wave.pkl")
-
-mri_model = joblib.load("models/parkinsons_mri_model.pkl")  # Use the correct model
-audio_model = joblib.load("models/random_forest_tuned.pkl")
 
 # ======================================================
-# HANDWRITING
+# ASSETS
 # ======================================================
 
-def quantify_image(image):
-    return feature.hog(
-        image,
-        orientations=12,
-        pixels_per_cell=(8, 8),
-        cells_per_block=(2, 2),
-        transform_sqrt=True,
-        block_norm="L2-Hys",
-    )
+@app.context_processor
+def inject_asset_helper():
+    """Stamp static URLs with the file's mtime.
 
-def handwriting_predict(image_path, model, scaler, le):
-    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    img = cv2.resize(img, (200, 200))
-    img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+    Without this, browsers keep serving a cached stylesheet or script after a
+    deploy, so a user can end up with new markup and old CSS.
+    """
+    static_root = BASE_DIR / "static"
 
-    feats = quantify_image(img)
-    feats = scaler.transform([feats])
+    def asset(filename):
+        try:
+            stamp = int((static_root / filename).stat().st_mtime)
+        except OSError:
+            stamp = 0
+        return url_for("static", filename=filename, v=stamp)
 
-    pred = model.predict(feats)[0]
-    prob = model.predict_proba(feats)[0]
-    label = le.inverse_transform([pred])[0]
+    return {"asset": asset}
 
-    idx = list(le.classes_).index("parkinson")
-    return label, prob[idx]
 
 # ======================================================
-# MRI
+# UPLOAD HANDLING
 # ======================================================
 
-def mri_predict(image_path):
-    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    if img is None:
-        raise ValueError("Invalid MRI image")
-    
-    img = cv2.resize(img, (128, 128))
-    img = img / 255.0
-    img = img.reshape(1, -1)
+def _extension(filename: str) -> str:
+    return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
-    pred = mri_model.predict(img)[0]
-    probs = mri_model.predict_proba(img)[0]
-    
-    parkinson_prob = probs[1]  # Parkinson class probability
 
-    label = "parkinson" if pred == 1 else "normal"
-    return label, parkinson_prob
+def save_upload(file_storage, allowed_extensions: set[str], field: str) -> str:
+    """Validate and save one upload, returning its stored filename.
 
-# ======================================================
-# VOICE FEATURE EXTRACTION
-# ======================================================
+    The stored name is prefixed with a random token so that two users uploading
+    'spiral.png' cannot overwrite each other's scans.
+    """
+    original = secure_filename(file_storage.filename or "")
+    if not original:
+        raise ValueError(f"No file supplied for '{field}'.")
 
-def load_audio(path, sr=16000):
-    y, _ = librosa.load(path, sr=sr)
-    y, _ = librosa.effects.trim(y)
-    return y, sr
+    ext = _extension(original)
+    if ext not in allowed_extensions:
+        raise ValueError(
+            f"'{original}' has an unsupported type for {field}. "
+            f"Allowed: {', '.join(sorted(allowed_extensions))}."
+        )
 
-def extract_voice_features(path):
-    y, sr = load_audio(path)
+    stored = f"{uuid.uuid4().hex[:12]}_{original}"
+    file_storage.save(os.path.join(app.config["UPLOAD_FOLDER"], stored))
+    return stored
 
-    features = {}
 
-    f0, _, _ = librosa.pyin(
-        y,
-        fmin=librosa.note_to_hz("C2"),
-        fmax=librosa.note_to_hz("C7"),
-        sr=sr
-    )
-    f0 = f0[~np.isnan(f0)]
-    features["f0_mean"] = np.mean(f0) if len(f0) else 0
-    features["f0_std"] = np.std(f0) if len(f0) else 0
-    features["f0_median"] = np.median(f0) if len(f0) else 0
+def _path(stored_name: str) -> str:
+    return os.path.join(app.config["UPLOAD_FOLDER"], stored_name)
 
-    periods = 1 / (f0 + 1e-8) if len(f0) else np.array([0])
-    features["jitter_local"] = np.mean(np.abs(np.diff(periods))) if len(periods) > 1 else 0
-    features["jitter_rap"] = features["jitter_local"]
 
-    rms = librosa.feature.rms(y=y)[0]
-    features["shimmer_local"] = np.mean(np.abs(np.diff(rms))) if len(rms) > 1 else 0
-    features["energy_mean"] = np.mean(rms)
-    features["energy_std"] = np.std(rms)
+def _sanitise(message: str) -> str:
+    """Strip server filesystem paths out of a message before showing it.
 
-    zcr = librosa.feature.zero_crossing_rate(y)[0]
-    features["zcr_mean"] = np.mean(zcr)
-    features["zcr_std"] = np.std(zcr)
+    Underlying libraries put the full path of the saved upload into their
+    errors. Echoing that to the browser discloses the server's directory
+    layout and tells the user nothing useful, so paths are reduced to the
+    bare filename.
+    """
+    upload_dir = str(UPLOAD_DIR)
+    message = message.replace(upload_dir + os.sep, "").replace(upload_dir, "")
+    # Any remaining absolute path -> its final component.
+    return re.sub(r"(/[\w.\-]+)+/([\w.\-]+)", r"\2", message)
 
-    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=2)
-    features["mfcc_0_mean"] = np.mean(mfcc[0])
-    features["mfcc_1_mean"] = np.mean(mfcc[1])
-    features["mfcc_0_std"] = np.std(mfcc[0])
-    features["mfcc_1_std"] = np.std(mfcc[1])
-
-    features["hnr"] = 0  # simplified for stability
-
-    return features
-
-def voice_predict(path):
-    feats = extract_voice_features(path)
-
-    order = [
-        "f0_mean","f0_std","f0_median",
-        "jitter_local","jitter_rap",
-        "shimmer_local","hnr",
-        "mfcc_0_mean","mfcc_1_mean",
-        "mfcc_0_std","mfcc_1_std",
-        "energy_mean","energy_std",
-        "zcr_mean","zcr_std"
-    ]
-
-    X = np.array([feats[k] for k in order]).reshape(1, -1)
-    pred = audio_model.predict(X)[0]
-    prob = audio_model.predict_proba(X)[0][1]
-
-    label = "parkinson" if pred == 1 else "healthy"
-    return label, prob, feats
 
 # ======================================================
-# ROUTE
+# PER-MODALITY ANALYSIS
 # ======================================================
+
+def analyse_handwriting(spiral_file, wave_file) -> dict:
+    spiral_name = save_upload(spiral_file, ALLOWED_IMAGE_EXTENSIONS, "spiral image")
+    wave_name = save_upload(wave_file, ALLOWED_IMAGE_EXTENSIONS, "wave image")
+
+    spiral_label, spiral_prob = spiral_model.predict(_path(spiral_name))
+    wave_label, wave_prob = wave_model.predict(_path(wave_name))
+
+    # The two drawings are two views of the same modality, so they are averaged
+    # here and the result enters tri-modal fusion as a single 'handwriting' vote.
+    combined = (spiral_prob + wave_prob) / 2
+
+    return {
+        "spiral_img": spiral_name,
+        "wave_img": wave_name,
+        "spiral_label": spiral_label,
+        "spiral_prob": round(spiral_prob * 100, 2),
+        "wave_label": wave_label,
+        "wave_prob": round(wave_prob * 100, 2),
+        "final": label_for(combined),
+        "final_prob": round(combined * 100, 2),
+        "_raw": combined,
+    }
+
+
+def analyse_mri(mri_file) -> dict:
+    name = save_upload(mri_file, ALLOWED_IMAGE_EXTENSIONS, "MRI scan")
+    label, prob = mri_model.predict(_path(name))
+
+    return {
+        "mri_img": name,
+        "label": label,
+        "prob": round(prob * 100, 2),
+        "final": label_for(prob),
+        "_raw": prob,
+    }
+
+
+def analyse_voice(audio_file) -> dict:
+    name = save_upload(audio_file, ALLOWED_AUDIO_EXTENSIONS, "voice recording")
+    label, prob, features = voice_model.predict(_path(name))
+
+    # Show the features the model actually consumed first, then the rest.
+    used = voice_model.expected_features
+
+    return {
+        "audio_file": name,
+        "label": label,
+        "prob": round(prob * 100, 2),
+        "final": label_for(prob),
+        "model_features": {k: round(features[k], 4) for k in used},
+        "features": {
+            k.replace("_", " ").title(): round(v, 4)
+            for k, v in features.items()
+            if k in {
+                "f0_mean", "f0_std", "f0_median", "jitter_local", "jitter_rap",
+                "shimmer_local", "hnr", "energy_mean", "energy_std",
+                "zcr_mean", "zcr_std",
+            }
+        },
+        "_raw": prob,
+    }
+
+
+# ======================================================
+# ROUTES
+# ======================================================
+
+# Each modality renders its own page. The POST contract is unchanged: every
+# form still posts to "/" with a test_type, and the same handler runs the same
+# analysis functions — only the template chosen for the response is new.
+MODALITY_PAGES = {
+    "handwriting": ("handwriting.html", "handwriting"),
+    "mri": ("mri.html", "mri"),
+    "voice": ("voice.html", "voice"),
+    "combined": ("combined.html", "combined"),
+}
+
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    handwriting_result = voice_result = mri_result = None
+    if request.method == "GET":
+        return render_template("index.html", active="home")
 
-    if request.method == "POST":
-        test = request.form.get("test_type")
+    handwriting_result = mri_result = voice_result = fusion_result = None
+    error = None
+    test = request.form.get("test_type")
 
-        # HANDWRITING TEST
+    try:
+        spiral = request.files.get("spiral")
+        wave = request.files.get("wave")
+        mri_file = request.files.get("mri")
+        audio = request.files.get("audio")
+
+        def has(f):
+            return f is not None and f.filename
+
         if test == "handwriting":
-            spiral = request.files.get("spiral")
-            wave = request.files.get("wave")
+            if not (has(spiral) and has(wave)):
+                raise ValueError("Both a spiral and a wave image are required.")
+            handwriting_result = analyse_handwriting(spiral, wave)
 
-            if spiral and wave:
-                spiral_name = secure_filename(spiral.filename)
-                wave_name = secure_filename(wave.filename)
-
-                spiral_path = os.path.join(UPLOAD_FOLDER, spiral_name)
-                wave_path = os.path.join(UPLOAD_FOLDER, wave_name)
-
-                spiral.save(spiral_path)
-                wave.save(wave_path)
-
-                spiral_label, spiral_prob = handwriting_predict(
-                    spiral_path, spiral_model, spiral_scaler, spiral_le
-                )
-                wave_label, wave_prob = handwriting_predict(
-                    wave_path, wave_model, wave_scaler, wave_le
-                )
-
-                avg_prob = (spiral_prob + wave_prob) / 2
-                final_label = "Likely Parkinson's" if avg_prob > 0.5 else "Likely Healthy"
-
-                handwriting_result = {
-                    "spiral_img": spiral_name,
-                    "wave_img": wave_name,
-                    "spiral_label": spiral_label,
-                    "spiral_prob": round(spiral_prob * 100, 2),
-                    "wave_label": wave_label,
-                    "wave_prob": round(wave_prob * 100, 2),
-                    "final": final_label,
-                    "final_prob": round(avg_prob * 100, 2),
-                }
-
-        # MRI TEST
         elif test == "mri":
-            mri_file = request.files.get("mri")
+            if not has(mri_file):
+                raise ValueError("An MRI scan is required.")
+            mri_result = analyse_mri(mri_file)
 
-            if mri_file:
-                mri_name = secure_filename(mri_file.filename)
-                mri_path = os.path.join(UPLOAD_FOLDER, mri_name)
-                mri_file.save(mri_path)
-
-                try:
-                    label, prob = mri_predict(mri_path)
-                    final_label = "Likely Parkinson's" if prob > 0.5 else "Likely Healthy"
-
-                    mri_result = {
-                        "mri_img": mri_name,
-                        "label": label,
-                        "prob": round(prob * 100, 2),
-                        "final": final_label,
-                    }
-                except Exception as e:
-                    return f"Error processing MRI: {str(e)}", 500
-
-        # VOICE TEST
         elif test == "voice":
-            audio = request.files.get("audio")
+            if not has(audio):
+                raise ValueError("A voice recording is required.")
+            voice_result = analyse_voice(audio)
 
-            if audio:
-                name = secure_filename(audio.filename)
-                path = os.path.join(UPLOAD_FOLDER, name)
-                audio.save(path)
+        elif test == "combined":
+            # Tri-modal screening: use whatever the user supplied.
+            if has(spiral) and has(wave):
+                handwriting_result = analyse_handwriting(spiral, wave)
+            if has(mri_file):
+                mri_result = analyse_mri(mri_file)
+            if has(audio):
+                voice_result = analyse_voice(audio)
 
-                try:
-                    label, prob, feats = voice_predict(path)
+            if not any([handwriting_result, mri_result, voice_result]):
+                raise ValueError(
+                    "Supply at least one of: both handwriting drawings, an MRI "
+                    "scan, or a voice recording."
+                )
+        else:
+            raise ValueError(f"Unknown test type: {test!r}")
 
-                    voice_result = {
-                        "audio_file": name,
-                        "label": label,
-                        "prob": round(prob * 100, 2),
-                        "final": "Likely Parkinson's" if prob > 0.5 else "Likely Healthy",
-                        "features": {k.replace("_"," ").title(): round(float(v), 2) for k,v in feats.items()}
-                    }
-                except Exception as e:
-                    return f"Error processing audio: {str(e)}", 500
+        fusion_result = fuse({
+            "handwriting": handwriting_result["_raw"] if handwriting_result else None,
+            "mri": mri_result["_raw"] if mri_result else None,
+            "voice": voice_result["_raw"] if voice_result else None,
+        })
 
+    except ValueError as exc:
+        error = _sanitise(str(exc))
+    except Exception as exc:  # model/IO failure — show it rather than a 500
+        error = _sanitise(f"Analysis failed: {exc}")
+
+    template, active = MODALITY_PAGES.get(test, ("index.html", "home"))
     return render_template(
-        "index.html",
+        template,
         handwriting_result=handwriting_result,
+        mri_result=mri_result,
         voice_result=voice_result,
-        mri_result=mri_result
+        fusion_result=fusion_result,
+        error=error,
+        active=active,
     )
 
+
+# ---- Modality pages (GET only; they post back to "/") ----------------
+
+@app.route("/handwriting")
+def spiral_page():
+    return render_template("handwriting.html", active="handwriting")
+
+
+@app.route("/mri")
+def mri_page():
+    return render_template("mri.html", active="mri")
+
+
+@app.route("/voice")
+def voice_page():
+    return render_template("voice.html", active="voice")
+
+
+@app.route("/combined")
+def combined_page():
+    return render_template("combined.html", active="combined")
+
+
+# ---- Error pages ------------------------------------------------------
+
+@app.errorhandler(404)
+def not_found(_exc):
+    return render_template(
+        "error.html",
+        code=404,
+        heading="That page does not exist",
+        detail="The address may be mistyped, or the page may have moved.",
+        retry_url=None,
+        active=None,
+    ), 404
+
+
+@app.errorhandler(413)
+def too_large(_exc):
+    limit_mb = MAX_UPLOAD_BYTES // (1024 * 1024)
+    return render_template(
+        "error.html",
+        code=413,
+        heading="That file is too large",
+        detail=(
+            f"Uploads are limited to {limit_mb} MB. Try exporting the scan or "
+            "recording at a smaller size, then upload it again."
+        ),
+        retry_url=url_for("combined_page"),
+        active=None,
+    ), 413
+
+
+@app.route("/api/predict", methods=["POST"])
+def api_predict():
+    """JSON endpoint. Accepts any subset of: spiral+wave, mri, audio."""
+    results: dict[str, object] = {}
+
+    try:
+        spiral, wave = request.files.get("spiral"), request.files.get("wave")
+        mri_file, audio = request.files.get("mri"), request.files.get("audio")
+
+        if spiral and wave:
+            hw = analyse_handwriting(spiral, wave)
+            results["handwriting"] = {k: v for k, v in hw.items() if not k.startswith("_")}
+        if mri_file:
+            m = analyse_mri(mri_file)
+            results["mri"] = {k: v for k, v in m.items() if not k.startswith("_")}
+        if audio:
+            v = analyse_voice(audio)
+            results["voice"] = {k: val for k, val in v.items() if not k.startswith("_")}
+
+        if not results:
+            return jsonify({"error": "No inputs supplied."}), 400
+
+        results["fusion"] = fuse({
+            "handwriting": results.get("handwriting", {}).get("final_prob", 0) / 100
+            if "handwriting" in results else None,
+            "mri": results.get("mri", {}).get("prob", 0) / 100 if "mri" in results else None,
+            "voice": results.get("voice", {}).get("prob", 0) / 100 if "voice" in results else None,
+        })
+        results["disclaimer"] = (
+            "Screening indicator only. Not a diagnosis. Consult a clinician."
+        )
+        return jsonify(results)
+
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"Analysis failed: {exc}"}), 500
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    # debug is opt-in: FLASK_DEBUG=1 python app.py
+    app.run(debug=os.environ.get("FLASK_DEBUG") == "1")
